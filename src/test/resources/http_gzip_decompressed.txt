@@ -1,0 +1,33 @@
+"source_ip" : "192.168.69.2", "source_port" : "34059", "destination_ip" : "192.168.69.1", "destination_port" : "80"
+GET /test/ethereal.html HTTP/1.1
+Host: cerberus
+User-Agent: Mozilla/5.0 (X11; U; Linux ppc; rv:1.7.3) Gecko/20041004 Firefox/0.10.1
+Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 300
+Connection: keep-alive
+Cookie: FGNCLIID=05c04axp1yaqynldtcdiwis0ag1
+
+HTTP/1.1 200 OK
+Date: Fri, 29 Oct 2004 05:21:00 GMT
+Server: Apache/2.0.50 (Fedora)
+Last-Modified: Fri, 29 Oct 2004 05:20:21 GMT
+ETag: "126e1f-6d-371b2f40"
+Accept-Ranges: bytes
+Vary: Accept-Encoding
+Content-Encoding: gzip
+Content-Length: 92
+Connection: close
+Content-Type: text/html; charset=UTF-8
+
+<html>
+<head>
+	<title>Ethereal Example Page</title>
+</head>
+<body>
+		Ethereal Example Page
+	</body>
+</html>
+

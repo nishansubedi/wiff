@@ -1,0 +1,256 @@
+#!/bin/bash
+
+PROGNAME=${0##*/}
+
+# Describes the usage of this script. Please update if arguments passed into the function change
+usage() {
+  echo "usage: wiffctl [--help|-h][--noop][--environment|-e=WIFF_ENV][--log_dir|-l=LOG_DIR][--capture_dir|-c=CAPTURE_DIR][--capture_src|-s=CAPTURE_SRC][--config=CONFIG_FILE][start|stop|restart]"
+}
+
+# Get java flags
+get_java_vars() {            
+  if [ "$ENVIRONMENT" == "prod" ]
+  then
+    JVM_OPTS="\
+            -Djava.library.path=. \
+            -Xms500m \
+            -Xmx2g \
+	          -XX:+HeapDumpOnOutOfMemoryError \
+	          -XX:HeapDumpPath=. \
+            "
+   else
+    JVM_OPTS="\
+            -Djava.library.path=. \
+            -Xms500m \
+            -Xmx1g \
+	          -XX:+HeapDumpOnOutOfMemoryError \
+	          -XX:HeapDumpPath=. \
+            "
+   fi
+   
+  JAVA_JMX_OPTS="\
+              -Dcom.sun.management.jmxremote \
+              -Dcom.sun.management.jmxremote.local.only=false \
+              -Dcom.sun.management.jmxremote.ssl=false \
+              -Dcom.sun.management.jmxremote.authenticate=false \
+              -Dcom.sun.management.jmxremote.port=2222 \
+              "
+  JAVA_OPTS="$JVM_OPTS $JAVA_JMX_OPTS"
+}
+
+start_wiff() {
+  # Start tcpdump with rotating log file
+  # -s0 tells tcpdump to collect entire packet contents
+  # -i selects the interface to collect from 
+  # -vvv gives us verbose logging/details
+  # -C gives us the max size of per data file
+  # -W is the number of rollover files - the file index will be appended to the end of each capture file
+  # -w is the file name
+  get_java_vars
+  
+  if [ -z "$CONFIG_FILE" ]
+  then
+   CONFIG_FILE="config/wiff-$ENVIRONMENT.conf"
+  fi
+ 
+  TCPDUMP_CMD="tcpdump -Z root 'tcp' -s0 -i $CAPTURE_SRC -C 100 -W 30 -w $CAPTURE_DIR/wiff_capture.pcap >> $LOG_DIR/tcpdump.out 2>&1 &"
+  JAVA_COMMAND="nohup $JAVA $JAVA_OPTS -jar wiff-0.1.0.jar --config-file=$CONFIG_FILE $* >> $LOG_DIR/wiff.out 2>&1 &"
+  
+  # Start nohup-ed Java process so that logging out will not stop the process
+  # Using $* to pass parameters from start script to wiff jar
+  JAVA_COMMAND=`echo $JAVA_COMMAND | tr -s " "`
+  echo "$TCPDUMP_CMD"
+  echo "$JAVA_COMMAND"
+
+  if ! $NOOP
+  then
+    echo "Running commands..."
+	# Make sure WIFF isn't running.
+	if [ -f wiff.pid ]; then
+	  PID=`cat wiff.pid`
+	  ps $PID > /dev/null
+	  if [ "$?" == 0 ]; then
+	    echo "WIFF is already running."
+	    exit 1
+	  fi
+	fi
+
+	# Create directories for captures and log if they don't exist
+  if [ ! -z "$CAPTURE_DIR" ]
+  then
+    rm -rf "$CAPTURE_DIR"/*
+	  mkdir -p "$CAPTURE_DIR"
+	fi
+  
+  mkdir -p "$LOG_DIR"
+
+	# Stop tcpdump
+   if [ ! -z "$CAPTURE_DIR"  ]
+  then
+	  killall tcpdump >> $LOG_DIR/tcpdump.out 2>&1
+  fi
+  
+  if [ ! -z "$CAPTURE_SRC"  ]
+  then
+    eval $TCPDUMP_CMD
+  fi
+  
+    eval $JAVA_COMMAND
+    # Fill out PID file and print message.
+    echo $! > wiff.pid
+    PID=`cat wiff.pid`
+    echo "WIFF process started [PID=$PID]"
+  fi
+}
+
+stop_wiff() {
+  if ! $NOOP
+  then 
+	  # Stop tcpdump
+	  killall tcpdump
+	  # Make sure we have a PID file.
+	  if [ ! -f wiff.pid ]; then
+	  echo "WIFF PID file not found; unable to stop process"
+	    exit 1
+	  fi
+
+	  # Make sure a process is running.
+	  PID=`cat wiff.pid`
+	  ps $PID > /dev/null
+	  if [ "$?" != 0 ]; then
+	    rm wiff.pid
+	    echo "WIFF process is not running; removing PID file"
+	    exit 1
+	  fi
+
+	  # Kill the process.
+	  kill $PID
+	  # Sleep to give kill a chance to work
+	  echo "Shutting down WIFF..."
+	  sleep 8 
+
+	  ps $PID > /dev/null
+	  if [ "$?" == 0 ]; then
+	    echo "Still working..."
+	    sleep 10
+	  fi
+
+	  ps  $PID > /dev/null
+	  if [ "$?" == 0 ]; then
+	    echo "Still working..."
+	    sleep 10
+	  fi
+
+	  ps $PID > /dev/null
+	  if [ "$?" != 0 ]; then
+	    rm wiff.pid
+	    echo "WIFF process stopped [PID=$PID]"
+	  else
+	    exit 2
+	    echo "Could not stop WIFF at [PID=$PID] or the process did not exist"
+	  fi
+  fi
+}
+
+NOOP=false
+ENVIRONMENT="dev"
+CAPTURE_SRC=""
+CAPTURE_DIR=""
+CONFIG_FILE=""
+LOG_DIR="./log"
+
+if [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
+else
+    JAVA=`which java`
+fi
+
+if [ ! -x "$JAVA" ]; then
+    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+    exit 1
+fi
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $DIR/..
+
+echo "Current Directory: $DIR"
+echo "Program Name: $PROGNAME"
+## ------ PARSING COMMAND LINE ARGUMENTS ------------ ##
+
+SHORTOPTS="he:l:c:s:"
+LONGOPTS="help,environment:,noop,log_dir:,capture_dir:,config:,capture_src:"
+# Parsing arguments
+if ! options=$(getopt -o $SHORTOPTS -l $LONGOPTS -n PROGNAME -- "$@")
+then
+  echo "Invalid argument passed in."
+  usage
+  exit 1
+fi
+# The set command takes any arguments after the options and assigns them to positional parameters ($0...$n). 
+# The eval command executes its arguments as a bash command
+eval set --$options
+#Now go through all the options
+while true; do
+  case "$1" in
+    -h|--help)
+      usage
+      shift
+      ;;
+    -e|--environment)
+      ENVIRONMENT=$2
+      shift 2
+	  ;;
+	-l|--log_dir)
+      LOG_DIR=$2
+      shift 2	
+      ;;
+  --config)
+      CONFIG_FILE=$2
+      shift 2	
+      ;;
+  -s|--capture_src)
+      CAPTURE_SRC=$2
+      shift 2	
+      ;;
+  -c|--capture_dir)
+      CAPTURE_DIR=$2
+      shift 2	
+      ;;
+    --noop)
+      NOOP=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "unknown: $1"
+      shift
+      break
+      ;;
+  esac
+done
+
+for arg do
+  case $arg in
+    start)
+      echo "Starting WIFF"
+      start_wiff
+    ;;
+    stop)
+      echo "Stopping WIFF"
+      stop_wiff
+    ;;
+    restart)
+      echo "Restarting WIFF"
+      stop_wiff
+      start_wiff
+    ;;
+    *)
+      usage
+    ;;
+  esac
+done
+
+## ------------   END OF PARSING COMMAND LINE ARGUMENTS ----------  ##
