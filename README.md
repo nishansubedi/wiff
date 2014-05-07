@@ -186,3 +186,8 @@ In this section I will dive a little deeper into WIFFs inner-workings. The diagr
 * TLS_RSA_WITH_AES_256_CBC_SHA
 * TLS_RSA_WITH_CAMELLIA_128_CBC_SHA
 * TLS_RSA_WITH_CAMELLIA_256_CBC_SHA
+
+### Copyright and license
+Copyright 2014 Wayfair, LLC.
+
+WIFF is licensed under the BSD3 license, see LICENSE file.
