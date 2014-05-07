@@ -32,7 +32,7 @@ While WIFF has the ability to extract request and response bodies, we do not do 
 
 
 ### How We WIFF
-We have a lot of traffic . So, to help deal with it, we use tcpdump (or WinDump, in Windows) to pull network traffic in to a ring buffer of pcap files. WIFF reads the files in order of creation and sends Elasticsearch Bulk API messages to RabbitMQ. We use the Elasticsearch RabbitMQ River plugin to have Elasticsearch retrieve the data from RabbitMQ. In most cases it should be fine to skip RabbitMQ and send data directly to Elasticsearch.
+We have a lot of traffic. So, to help deal with it, we use tcpdump (or WinDump, in Windows) to pull network traffic in to a ring buffer of pcap files. WIFF reads the files in order of creation and sends Elasticsearch Bulk API messages to RabbitMQ. We use the Elasticsearch RabbitMQ River plugin to have Elasticsearch retrieve the data from RabbitMQ. In most cases it should be fine to skip RabbitMQ and send data directly to Elasticsearch.
 
 We can view our data using [Kibana](http://www.elasticsearch.org/overview/kibana/), the Elasticsearch frontend. We have a set of different dashboards, each aimed at giving insight into a specific type of issue.
 
