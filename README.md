@@ -2,7 +2,7 @@
 
 ## A Packet Sniffer and Analyzer
 
-WIFF is a packet sniffer that can be configured to read packets from a network interface or set pcap file. Wiff can then be configured to extract and analyze data from individual packets, or from a set of related packets and send collected data to an external storage destination.
+WIFF is a packet sniffer that can be configured to read packets from a network interface or set of pcap files. Wiff can then be configured to extract and analyze data from individual packets, or from a set of related packets and send collected data to an external storage destination.
 
 Supported Data Sources:
 
@@ -24,6 +24,19 @@ Supported Data Destinations
 
 WIFF has been designed to make each of these facets easily extendable.
 
+### Why We WIFF
+
+Wayfair, being an e-commerce company, wants to give its customers the best shopping experience possible. Part of that is reacting quickly to issues customers have on our websites. We use WIFF to detect 500 errors and redirect loops before any user alerts us to them. We also use it to investigate reported issues, track customers, and detect bots. We plan to use WIFF for anomaly detection as well.
+
+While WIFF has the ability to extract request and response bodies, we do not do so. Especially in the case secure (SSL) traffic.
+
+
+### How We WIFF
+We have a lot of traffic . So, to help deal with it, we use tcpdump (or WinDump, in Windows) to pull network traffic in to a ring buffer of pcap files. WIFF reads the files in order of creation and sends Elasticsearch Bulk API messages to RabbitMQ. We use the Elasticsearch RabbitMQ River plugin to have Elasticsearch retrieve the data from RabbitMQ. In most cases it should be fine to skip RabbitMQ and send data directly to Elasticsearch.
+
+We can view our data using [Kibana](http://www.elasticsearch.org/overview/kibana/), the Elasticsearch frontend. We have a set of different dashboards, each aimed at giving insight into a specific type of issue.
+
+
 ### Getting Started
 
 For a basic installation you will need the following:
@@ -37,6 +50,7 @@ For a basic installation you will need the following:
 
 * Download and unzip WIFF
 * Download [JNetPcap](http://jnetpcap.com/download) and copy .dll or .so files to the unzipped WIFF folder. 
+ * NOTE: Macs are not currently supported. 
 * Modify a config file (I suggest config/wiff-simple.conf). Set the following
  * capture_source
  * wiff.reporter.elastic.host
@@ -47,7 +61,77 @@ Or, in Windows (PowerShell)
 
 * Run bin\wiffctl.ps1 -a start -config_file [config_file]
 
-Start visiting pages in your browser or with curl. Documents containing request-response pair should appear in Elasticseach.
+Start visiting pages in your browser or with curl. Documents containing request-response pair should appear in Elasticseach. Below is an example.
+
+
+    {
+        _index: wiff_dev-2010.06.04.14
+        _type: data
+        _id: VVQkWO2CTB-Nj0a1syb8ug
+        _version: 1
+        _score: 1
+        _source: {
+            data: {
+                request: {
+                    page: /images/layout/logo.png
+                    method: GET
+                    http_version: 1.1
+                    host: packetlife.net
+                    user-agent: Mozilla/5.0 (X11; U; Linux x86_64; en-US; rv:1.9.2.3) Gecko/20100423 Ubuntu/10.04 (lucid) Firefox/3.6.3
+                    accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+                    accept-language: en-us,en;q=0.5
+                    accept-encoding: gzip,deflate
+                    accept-charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+                    keep-alive: 115
+                    connection: keep-alive
+                    cookie: {
+                        __gads: ID=be651be1986ac2a7:T=1269487862:S=ALNI_MZdKlZ_XhLKVjt8GOzrMTlwEKOuAQ
+                        __utma: 116878343.438472518.1269487857.1275669543.1275673440.259
+                        __utmz: 116878343.1275503662.251.26.utmcsr=google|utmccn=(organic)|utmcmd=organic|utmctr=path%20mtu%20discovery%20packetlife
+                        sessionid: c9f137b8fff0639404c94d55032ca85e
+                    }
+                }
+                response: {
+                    http_status_code: 200
+                    http_status: OK
+                    server: nginx/0.8.34
+                    date: Fri, 04 Jun 2010 18:43:08 GMT
+                    content-type: image/png
+                    content-length: 22612
+                    last-modified: Wed, 30 Sep 2009 02:12:49 GMT
+                    connection: keep-alive
+                    keep-alive: timeout=20
+                    expires: Sat, 04 Jun 2011 18:43:08 GMT
+                    cache-control: public
+                    accept-ranges: bytes
+                }
+                timestamp: 2010-06-04T14:43:08-0400
+                source_ip: 192.168.1.2
+                source_port: 54841
+                destination_ip: 174.143.213.184
+                destination_port: 80
+            }
+        }
+    }
+Turning on the WiffRoundtrips service would cause documents like the one below to appear as well.
+
+    {
+        _index: roundtrip
+        _type: data
+        _id: M-xFHpUbQoqITbf2muhxXA
+        _version: 1
+        _score: 1
+        _source: {
+            data: {
+                source_ip: 174.143.213.184
+                source_port: 80
+                destination_ip: 192.168.1.2
+                destination_port: 54841
+                roundtrip time: 1335
+            }
+        }
+    }
+
 
 ## Design
 
